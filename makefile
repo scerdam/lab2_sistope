@@ -1,3 +1,3 @@
 all: main.c main.h
 	gcc -o ejecutable main.c main.h -pthread
-	./ejecutable -i ejemplo1.txt -h 3 -c 5 -n 5 -m 3 -s out.txt -d
+	./ejecutable -i diccionario.txt -h 5 -c 6 -n 16 -m 6 -s out.txt -d

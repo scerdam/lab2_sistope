@@ -1,234 +1,271 @@
-#include <ctype.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include "main.h"
-#include <pthread.h>
+
+int width,length;
+char **soup;  //matriz que representa la sopa de letra y es compartida por las hebras
+
+int main(int argc, char **argv) {
+
+    srand((unsigned int) time(NULL));
+
+      char *file_name_in, *file_name_out = NULL;
+      int n_threads, quantity_words, flag_show_results = 0;
+
+      int index;
+      int c;
 
 
-char**soup;
+      opterr = 0;
+
+      while ((c = getopt (argc, argv, "i:h:c:n:m:s:d")) != -1)
+        switch (c)
+          {
+          case 'i':
+            file_name_in = optarg;
+            break;
+          case 'h':
+             n_threads = atoi(optarg);
+             break;
+          case 'c':
+            quantity_words = atoi(optarg);
+            break;
+          case 'n':
+            width = atoi(optarg); // cantidad filas
+            break;
+          case 'm':
+           length = atoi(optarg); // cantidad columnas
+            break;
+          case 's':
+            file_name_out  = optarg;
+            break;
+          case 'd':
+            flag_show_results = 1;
+            break;
+          case '?':
+            if (optopt == 'c')
+              fprintf (stderr, "Opcion -%c requie re un argumento.\n", optopt);
+            else if (isprint (optopt))
+              fprintf (stderr, "Opcion desconocida `-%c'.\n", optopt);
+            else
+              fprintf (stderr,
+                       "Opcion con caracter desconocido `\\x%x'.\n",optopt);
+            return 1;
+          default:
+            abort ();
+          }
 
 
-int main (int argc, char **argv){
+      for (index = optind; index < argc; index++) printf ("No existe opcion para agumento: %s\n", argv[index]);
 
-  char *file_name, *out_file = NULL;
-  int n_threads, quantity_words, flag_show_results = 0;
-  int width,length;
-  int index;
-  int c;
-
-  opterr = 0;
-
-  while ((c = getopt (argc, argv, "i:h:c:n:m:s:d")) != -1)
-    switch (c)
-      {
-      case 'i':
-        file_name = optarg;
-        break;
-      case 'h':
-         n_threads = atoi(optarg);
-        break;
-      case 'c':
-        quantity_words = atoi(optarg);
-        break;
-      case 'n':
-        length = atoi(optarg); // cantidad columnas
-        break;
-      case 'm':
-        width= atoi(optarg); // cantidad filas
-        break;
-      case 's':
-        out_file  = optarg;
-        break;
-      case 'd':
-        flag_show_results = 1;
-        break;
-      case '?':
-        if (optopt == 'c')
-          fprintf (stderr, "Opcion -%c requiere un argumento.\n", optopt);
-        else if (isprint (optopt))
-          fprintf (stderr, "Opcion desconocida `-%c'.\n", optopt);
-        else
-          fprintf (stderr,
-                   "Opcion con caracter desconocido `\\x%x'.\n",
-                   optopt);
-        return 1;
-      default:
-        abort ();
+      if(length < quantity_words){
+            printf("No caben todas las palabras en la sopa\n");
+            exit(0);
       }
 
 
-  for (index = optind; index < argc; index++) printf ("No existe opcion para agumento: %s\n", argv[index]);
-
-  hilo* threads;
-  pthread_t hola[9];
-   int j = 0;
-
-  initiateStructures(&threads,n_threads, width, length);
-  initiateSoup(width,length);
+    soup = createSoup(width, length); //inicializa la sopa con ceros
+    char **words;      // arreglo de strings que almacenara las palabras leidas desd el archivo(file_name_in)
+    words = getWords(quantity_words, file_name_in);  //obtiene las palabras
 
 
-  while(j < n_threads){
+    int n_words_by_thread = quantity_words /n_threads;
 
-   pthread_create(&(threads[j].thread), NULL, ubicar, (void *) threads);
-   j++;
-
-  }
+    if (!checkArgs(width, length, quantity_words, n_threads, file_name_in)) exit(0);   //Se validan los paremtros, si encuentra un error termian el programa
 
 
+    ParamsThread params[n_threads];  //se declaran las estructuras que seran pasadas como parametros a cada hebra en la funcion ubicar
+    pthread_t threads[n_threads];
 
+    int i = 0, j = 0, k = 0;
 
+    while(i<n_threads){
+        params[i].assigned_words= malloc(sizeof(char*)*MAX_WORDS_BY_THREAD);
 
-  j = 0;
-  while(j < n_threads){  // esperar a que todas las hebras terminen
-
-   pthread_join(threads[j].thread, NULL);
-   j++;
-
-  }
-
-  //Rellenar los espacios vacios/zeros ' ' ó '0' con letras aleatorias en minuscula
-
-  // test soup soup[fila][columna]
-  soup[1][2] = 'C';
-  soup[1][3] = 'H';
-  soup[1][4] = 'I';
-
-  if(flag_show_results) printSoup(width,length);  // imprime la sopa si esta la flag de mostrar resuletado
-  return 0;
-}
-
-
-void initiateStructures(hilo **threads, int n_threads, int width, int length){
-
-
-  *threads= (hilo*)malloc(sizeof(hilo)*n_threads);
-  int i;
-  int j;
-  char **wordList;
-  // int wordsByThread = getWordsByThread(n_threads,)
-  while(i < n_threads)
-    {
-      (*threads)[i].id = i;
-       pthread_mutex_init(&((*threads)[i].mute), NULL);
-       wordList = (*threads)[i].list;
-
-       wordList = (char**)malloc(sizeof(char*)*width);
-       for(j=0;j<width;j++){
-         wordList[j] = (char*)malloc(sizeof(char)*length);
+        while (j<n_words_by_thread){
+            params[i].assigned_words[j]= malloc(sizeof(char*)*MAX_WORD_LENGTH );
+            j++;
         }
-       i++;
+
+        i++;
+        j=0;
     }
 
 
-}
+    pthread_mutex_t mutexs[length];  // un mutex para clada fila
+
+    i=0;
+    j=0;
+    while (i < n_threads){
+       params[i].id = i;
+       while (j<n_words_by_thread) {
+           strcpy( params[i].assigned_words[j], words[k]);
+            j++;
+            k++;
+        }
+        j=0;
 
 
 
-void *ubicar(void* id){
-  hilo * unhilo = (hilo*) id;
- printf("hola soy una hebra \n");
+        params[i].mutexs = mutexs;
+        params[i].n_words_by_thread = n_words_by_thread;
 
-
-
-}
-
-
-void printSoup(int width, int length){
-int row, columns;
-  for (int row=0; row<width; row++)
-  {
-      for(int columns=0; columns<length; columns++)
-          {
-           printf("%c  ", soup[row][columns]);
-          }
-      printf("\n");
-   }
-}
-
-
-void initiateSoup(int width,int length){ // reserva memoria para la matriz Soup e inicializa su casilla con '0' despues cambiar a ' '
-  //Matriz de sopa de letras
-    int i = 0;
-    soup = (char**)malloc(sizeof(char*)*width);
-    for(i=0;i<width;i++){
-        soup[i] = (char*)malloc(sizeof(char)*length);
+        pthread_mutex_init(mutexs+i, NULL);  // inicializamo cada mutex
+        pthread_create(&threads[i], NULL, ubicar,  &params[i]); // se crea cada hebra con sus respectivos parámetros
+        i++;
     }
 
-    int row, columns;
-      for (int row=0; row<width; row++)
-      {
-          for(int columns=0; columns<length; columns++)
-              {
-               soup[row][columns]='0';
-              }
-       }
-
-}
+    i=0;
 
 
-
-
-
-int getStartLine(int i,int n_processes, int file_lines ){ // funcion que calcula la linea de comienzo de lectura para cada proceso(pasada como argumento al programa comparador) en funcion de los argumentos recibidos
-  int line = 0;
-
-  if(i==0) line = 1;
-  else{
-    if(i<n_processes){
-      line = (file_lines/n_processes)*i +1;
+    while(i < n_threads){
+        pthread_join(threads[i],NULL); // esperar a que todas las hebras terminen
+        i++;
     }
-    else{
-      line = -1;
+
+    fillSoupRandom(soup,length,width);
+
+    writeSoup(file_name_out );
+
+    if(flag_show_results) printSoup();
+
+    return 0;
+}
+
+
+// llena los espacios vacios con caracteres aleatorios
+void fillSoupRandom(char **soup, int length, int width){
+    int i,j;
+
+    for (i = 0; i < length; ++i) {
+        for (j = 0; j < width; ++j) {
+
+            if(soup[i][j] == '0')  soup[i][j] = rand()%26 + 97; //caracter del alfabeto ingles latino
+        }
     }
-  }
-
-  return line;
-
 }
 
-int getLinesToRead(int i,int n_processes, int file_lines ){ // funcion que calcula la cantidad de lineas que debe leer cada proceso(pasada como argumento al programa comparador)
-  int line = 0;
 
-  if(i<n_processes-1){
-    line = (file_lines/n_processes);
-  }
-  else{
-    line = file_lines - (file_lines/n_processes)*i-1;
-  }
+void *ubicar(void *params){
+
+    ParamsThread *p = (ParamsThread*) params; // casteo de los parametros
+    int x_random, y_random, word_length;
+
+    int j=0,i=0;
+    for (j = 0; j < p->n_words_by_thread; ++j) {
+
+        word_length = strlen(p->assigned_words[j]);
+        do{
+            y_random = rand() % length;
+            x_random = rand() % (width-word_length); // para asegurar que la palabra quepa
+        } while (!checkPositions(soup, x_random, y_random, word_length)); // si no esta la fila disponible la hebar debe esperar
+
+        pthread_mutex_lock(p->mutexs+j);
+        for (int i = 0; i < word_length; ++i){
+            soup[y_random][x_random + i] = p->assigned_words[j][i];
+        }
+
+        pthread_mutex_unlock(p->mutexs+j);
+
+    }
+
+    return NULL;
+}
+//Obtiene las palabras desde el archivo de entrada
+char **getWords(int quantity_words, char *file_name_in){
+    int i=0,j=0;
+    char** words = (char**)malloc(sizeof(char*)*quantity_words);
+    char line [MAX_WORD_LENGTH];
+    FILE *f_in = fopen (file_name_in, "r");
 
 
-  return line;
+    while ( fgets(line, MAX_WORD_LENGTH, f_in )  ){
 
+        words[i] = (char*)malloc(sizeof(char)*MAX_WORD_LENGTH);
+
+        sscanf(line,"%s%*c", words[i]);
+        j=0;
+
+        while(j<strlen(words[i])) {
+              words[i][j] = toupper(words[i][j]);  // palabra = PALABRA
+              j++;
+           }
+        i++;
+    }
+
+
+    return words;
 }
 
-int countLines(const char *file_name){ // funcion para contar las lineas del archivo pasado como arguemento
-     int ch = 0;
-     int count = 0;
-     FILE *fileHandle;
+int checkArgs(int width, int length, int quantity_words, int n_threads, char *file_name_in){
+    FILE *f_in = fopen(file_name_in, "r");
+    char** words = (char**)malloc(sizeof(char*)*quantity_words);
+    char line[MAX_WORD_LENGTH];
+    int i=0;
 
-     if ((fileHandle = fopen(file_name, "r")) == NULL) {
-        return -1;
-     }
+    int longer_word=0;
 
-     do {
-        ch = fgetc(fileHandle);
-        if ( ch == '\n')
-           count++;
-     } while (ch != EOF);
-     count++;
-     fclose(fileHandle);
+    while ( fgets(line, sizeof line, f_in )){
 
-     return count;
+        words[i] = (char*)malloc(sizeof(char)*MAX_WORD_LENGTH);
+        sscanf(line,"%s%*c", words[i]);
+        if (longer_word < strlen(words[i]))   longer_word = strlen(words[i]);
+    }
+
+    if(n_threads > quantity_words) printf("El numero de hebras debe ser menor a la cantidad de palabras\n");
+    else if(n_threads < 1) printf("El numero de hrbras debe ser mayor a 1\n");
+    else if(longer_word > width) printf("El ancho de la sopas es menor que el tamño de la palabra más larga\n");
+    else return 1;
+    return 0;
 }
 
-char* concat(const char *s1, const char *s2)  //funcion que concatena 2 string
-{
-    char *result = malloc(strlen(s1)+strlen(s2)+1);
-    strcpy(result, s1);
-    strcat(result, s2);
-    return result;
+
+// Checkea que las posiciones donde se insertara la palabra este disponible
+int checkPositions(char **soup, int x, int y, int word_length){
+    for (int i = 0; i < word_length; ++i) {
+        if(soup[y][x+i] != '0')
+            return 0;
+    }
+    return 1;
+}
+
+// Recorre la matriz sopa e imprime cada caracter
+void printSoup(){
+    int i,j;
+    printf("\n");
+    for(i=0;i<length;i++){
+
+        printf("  ");
+        for(j=0;j<width;j++){
+            printf("%c" ,soup[i][j]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+// escribe la sopa en el achivo de salida
+void writeSoup(char *file_name_out){
+    FILE * f_out = fopen(file_name_out , "w");
+    int i,j;
+    for(i=0;i<length;i++){
+
+        for(j=0;j<width;j++){
+            fputc(soup[i][j], f_out);
+        }
+        fputc('\n',f_out);
+    }
+    fclose(f_out);
+}
+
+// Revsrva memoria y llena con ceros la matriz sopa
+char **createSoup(int width, int length){
+    int i,j;
+    char** soup = (char**)malloc(sizeof(char*)*length);
+    for(i=0;i<length;i++){
+        soup[i] = (char*)malloc(sizeof(char)*width);
+        for(j=0;j<width;j++){
+            soup[i][j]='0';
+        }
+    }
+
+    return soup;
 }
